@@ -1,34 +1,25 @@
-// kernel.c - C kernel functions
+#include "drivers/hardware_interrupt_enabler.h"
+#include "drivers/fb.h"
+#include "terminal.h"
+#include "drivers/interrupts.h"
 
-// sum_of_three: returns the sum of three integers
-int sum_of_three(int a, int b, int c) {
-    return a + b + c;
-}
-
-// multiply: returns the product of two integers
-int multiply(int a, int b) {
-    return a * b;
-}
-
-// subtract: returns a - b
-int subtract(int a, int b) {
-    return a - b;
-}
-
-// kernel_main: entry point called from assembly loader
 void kernel_main() {
-    int s = sum_of_three(1, 2, 3);       // s = 6
-    int m = multiply(2, 4);              // m = 8
-    int sub = subtract(10, 3);           // sub = 7
+    // Initial debug output before enabling interrupts
+    fb_clear(FB_LIGHT_GREY, FB_BLACK);
+    // fb_print("Kernel started...\n", FB_LIGHT_GREEN, FB_BLACK);
 
-    // Store results in registers for QEMU logging
-    __asm__ __volatile__(
-        "mov eax, %0\n\t"
-        "mov ebx, %1\n\t"
-        "mov ecx, %2\n\t"
-        :
-        : "r"(s), "r"(m), "r"(sub)
-    );
+    // fb_print("Setting up interrupts...\n", FB_LIGHT_CYAN, FB_BLACK);
+    interrupts_install_idt();
+    // fb_print("IDT installed!\n", FB_LIGHT_CYAN, FB_BLACK);
 
-    while (1); // loop forever
+    // fb_print("Initializing terminal...\n", FB_LIGHT_CYAN, FB_BLACK);
+    terminal_init();
+    // fb_print("Terminal ready!\n", FB_LIGHT_CYAN, FB_BLACK);
+
+    // Enable hardware interrupts **after framebuffer setup**
+    enable_hardware_interrupts();
+    // fb_print("Interrupts enabled!\n", FB_LIGHT_GREEN, FB_BLACK);
+
+    // Start main terminal loop
+    terminal_run();
 }
