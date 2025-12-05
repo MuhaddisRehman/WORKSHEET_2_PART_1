@@ -187,6 +187,11 @@ The VGA text mode framebuffer is located at physical address `0xB8000` and provi
 - 80 columns × 25 rows = 2000 characters
 - Each character is 2 bytes: `[BG:4bits][FG:4bits][ASCII:8bits]`
 
+**Part 2 Enhancement:** Added hardware cursor control for proper terminal behavior:
+- Updates VGA cursor position via I/O ports 0x3D4/0x3D5
+- Cursor follows text input, backspace, and newlines
+- Handles special characters: `\n` (newline), `\b` (backspace)
+
 ### API Design (`source/drivers/fb.h`)
 
 ```c
@@ -522,6 +527,11 @@ grep "CAFEBABE" logQ.txt
 
 ## References
 
+### Assignment Specifications
+- [Worksheet 2 Part 1 Specification](worksheet2_part1_V2(1).pdf) - Original assignment requirements (Tasks 1-4)
+- [Worksheet 2 Part 2 Specification](worksheet2_part2.pdf) - Extension assignment (Interrupts & Terminal)
+
+### Technical Resources
 - [The Little Book of OS Development](https://littleosbook.github.io/)
 - [Multiboot Specification](https://www.gnu.org/software/grub/manual/multiboot/multiboot.html)
 - [OSDev Wiki - VGA Text Mode](https://wiki.osdev.org/Text_UI)
@@ -1292,37 +1302,69 @@ make quit
 2. Ensured keyboard interrupt (IRQ1) was unmasked: `outb(0x21, inb(0x21) & ~(1 << 1))`
 3. Called `sti` instruction to enable hardware interrupts
 
-### Challenge 2: Backspace Not Working Properly
+### Challenge 2: Assembly Calling Convention Bug
 
-**Problem:** Backspace deleted characters but left visual artifacts.
+**Problem:** Interrupts weren't firing at all - the CPU would boot but no timer or keyboard interrupts occurred.
 
-**Solution:** Updated `fb_backspace()` to overwrite deleted character with space:
+**Root Cause:** The interrupt wrapper assembly was pushing the interrupt number and error code BEFORE saving registers, making them inaccessible to the C handler.
+
+**Solution:** Reordered assembly to save registers first, then push parameters:
+
+```asm
+interrupt_handler_%1:
+    cli
+    pushad              ; Save registers FIRST
+    push ds
+    push es
+    push fs
+    push gs
+
+    push dword 0        ; THEN push parameters
+    push dword %1
+    call interrupt_handler
+```
+
+### Challenge 3: Hardware Cursor Not Following Text
+
+**Problem:** The blinking cursor stayed at position (0,0) instead of following typed text.
+
+**Solution:** Implemented VGA cursor update via I/O ports:
 
 ```c
-void fb_backspace() {
-    if (cursor_x > 0) {
-        cursor_x--;
-        fb[cursor_y * FB_WIDTH + cursor_x] =
-            ((current_bg & 0x0F) << 12) | ((current_fg & 0x0F) << 8) | ' ';
-    }
+static void fb_update_cursor() {
+    uint16_t pos = cursor_y * FB_WIDTH + cursor_x;
+    outb(0x3D4, 0x0F);  // Cursor location low byte
+    outb(0x3D5, (uint8_t)(pos & 0xFF));
+    outb(0x3D4, 0x0E);  // Cursor location high byte
+    outb(0x3D5, (uint8_t)((pos >> 8) & 0xFF));
 }
 ```
 
-### Challenge 3: Readline() Blocking Forever
+Called after every cursor movement operation.
 
-**Problem:** `readline()` would hang if no input was available.
+### Challenge 4: IDT Initialization Errors
 
-**Solution:** This is actually **intended behavior**. The function uses busy-wait:
+**Problem:** Multiple IDT-related issues prevented interrupts from working.
+
+**Solutions:**
+1. **IDT size field:** Must be `(size - 1)` per Intel specification
+2. **Uninitialized entries:** All 256 IDT entries must be zeroed
+3. **PIC timing:** Added IO wait delays between PIC commands for hardware stability
+
+### Challenge 5: Keyboard Controller Not Responding
+
+**Problem:** Some keyboard interrupts were missed on boot.
+
+**Solution:** Added keyboard controller initialization to clear any pending data:
 
 ```c
-while (buffer_count == 0);  // Wait for keyboard interrupt to fill buffer
+void keyboard_init() {
+    while (inb(KEYBOARD_STATUS_PORT) & 0x01) {
+        inb(KEYBOARD_DATA_PORT);  // Clear buffer
+    }
+    keyboard_init_buffer();
+}
 ```
-
-This is acceptable in our single-tasking OS. In a multitasking OS, we'd use:
-
-- Sleep/wake mechanisms
-- Semaphores
-- Blocking I/O with scheduler integration
 
 ---
 
@@ -1410,14 +1452,23 @@ This project successfully extends Part 1 with:
 - ✅ **Interactive terminal** with command parsing and execution
 - ✅ **4 built-in commands** demonstrating extensibility
 - ✅ **Real-time keyboard input** via interrupt-driven I/O
+- ✅ **Hardware cursor control** for professional terminal appearance
+- ✅ **Production-quality code** with all debug code removed
 
 The system demonstrates fundamental OS concepts:
 
-- Hardware interrupt handling
-- Device driver development
-- Buffered I/O
-- User interface implementation
-- Modular software design
+- Hardware interrupt handling (IDT, PIC, IRQs)
+- Device driver development (keyboard, framebuffer)
+- Buffered I/O (circular buffer)
+- User interface implementation (command shell)
+- Modular software design (clean separation of concerns)
+
+**Key Implementation Details:**
+- All interrupts properly initialized (256 IDT entries)
+- Correct assembly calling conventions (parameters after register saves)
+- Hardware timing (PIC IO delays for stability)
+- VGA cursor synchronization
+- Clean, submission-ready code
 
 **Total Lines of Code Added:** ~800 lines across 15 new files
 
@@ -1457,6 +1508,10 @@ Possible extensions to this project:
 
 ## References (Part 2)
 
+### Assignment Specifications
+- [Worksheet 2 Part 2 Specification](worksheet2_part2.pdf) - Interrupts, keyboard input, and terminal shell requirements
+
+### Technical Resources
 - [OSDev Wiki - Interrupts](https://wiki.osdev.org/Interrupts)
 - [OSDev Wiki - 8259 PIC](https://wiki.osdev.org/8259_PIC)
 - [OSDev Wiki - PS/2 Keyboard](https://wiki.osdev.org/PS/2_Keyboard)
