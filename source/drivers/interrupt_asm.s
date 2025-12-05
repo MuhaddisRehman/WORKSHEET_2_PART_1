@@ -1,29 +1,36 @@
-;Generic Interrupt Handler
-;
 extern interrupt_handler
 
 %macro no_error_code_interrupt_handler 1
 global interrupt_handler_%1
 interrupt_handler_%1:
-    push dword 0                  ; push 0 as error code (2nd parameter)
-    push dword %1                 ; push the interrupt number (1st parameter)
-    jmp common_interrupt_handler  ; jump to the common handler
-%endmacro
+    cli                     ; disable nested interrupts
 
-common_interrupt_handler:         ; the common parts of the generic interrupt handler
-    ; save the registers
-    pushad                        ; push all general purpose registers
+    push dword 0            ; dummy error code
+    push dword %1           ; interrupt number
 
-    ; call the C function (parameters already on stack)
+    pushad
+    push ds
+    push es
+    push fs
+    push gs
+
+    mov ax, 0x10            ; data segment selector
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+
     call interrupt_handler
 
-    ; restore the registers
-    popad                         ; pop all general purpose registers
+    pop gs
+    pop fs
+    pop es
+    pop ds
+    popad
 
-    ; restore the esp (remove error code and interrupt number)
-    add esp, 8
-
-    ; return to the code that got interrupted
+    add esp, 8              ; clean up stack (int + error code)
+    sti                     ; enable interrupts
     iret
+%endmacro
 
-no_error_code_interrupt_handler 33  ; create handler for interrupt 33 (keyboard)
+no_error_code_interrupt_handler 33

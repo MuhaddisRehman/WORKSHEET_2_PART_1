@@ -17,7 +17,7 @@ void kernel_main() {
     // fb_print("Terminal ready!\n", FB_LIGHT_CYAN, FB_BLACK);
 
     // Enable hardware interrupts **after framebuffer setup**
-    enable_hardware_interrupts();
+    // enable_hardware_interrupts();
     // fb_print("Interrupts enabled!\n", FB_LIGHT_GREEN, FB_BLACK);
 
     // Start main terminal loop
