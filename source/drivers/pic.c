@@ -1,34 +1,36 @@
 #include "pic.h"
 #include "io.h"
 
+static void io_wait(void) {
+    outb(0x80, 0);
+}
+
 void pic_remap(s32int offset1, s32int offset2)
 {
-    unsigned char a1, a2;
-
-    // Save masks
-    a1 = inb(PIC_1_DATA);
-    a2 = inb(PIC_2_DATA);
-
-    // Start initialization sequence (in cascade mode)
     outb(PIC_1_COMMAND, PIC_ICW1_INIT | PIC_ICW1_ICW4);
+    io_wait();
     outb(PIC_2_COMMAND, PIC_ICW1_INIT | PIC_ICW1_ICW4);
+    io_wait();
 
-    // Set vector offsets
     outb(PIC_1_DATA, offset1);
+    io_wait();
     outb(PIC_2_DATA, offset2);
+    io_wait();
 
-    // Tell Master PIC that there is a slave PIC at IRQ2 (0000 0100)
     outb(PIC_1_DATA, 4);
-    // Tell Slave PIC its cascade identity (0000 0010)
+    io_wait();
     outb(PIC_2_DATA, 2);
+    io_wait();
 
-    // Set mode
     outb(PIC_1_DATA, PIC_ICW4_8086);
+    io_wait();
     outb(PIC_2_DATA, PIC_ICW4_8086);
+    io_wait();
 
-    // Restore saved masks
-    outb(PIC_1_DATA, a1);
-    outb(PIC_2_DATA, a2);
+    outb(PIC_1_DATA, 0xFF);
+    io_wait();
+    outb(PIC_2_DATA, 0xFF);
+    io_wait();
 }
 
 void pic_acknowledge(u32int interrupt)

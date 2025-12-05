@@ -42,6 +42,7 @@ void interrupts_install_idt();
 
 // Wrappers around ASM.
 void load_idt(u32int idt_address);
+void interrupt_handler_32();
 void interrupt_handler_33();
 
 #endif /* INCLUDE_INTERRUPTS */

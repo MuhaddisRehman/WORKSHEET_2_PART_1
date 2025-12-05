@@ -3,24 +3,23 @@ extern interrupt_handler
 %macro no_error_code_interrupt_handler 1
 global interrupt_handler_%1
 interrupt_handler_%1:
-    cli                     ; disable nested interrupts
-
-    push dword 0            ; dummy error code
-    push dword %1           ; interrupt number
-
+    cli
     pushad
     push ds
     push es
     push fs
     push gs
 
-    mov ax, 0x10            ; data segment selector
+    mov ax, 0x10
     mov ds, ax
     mov es, ax
     mov fs, ax
     mov gs, ax
 
+    push dword 0
+    push dword %1
     call interrupt_handler
+    add esp, 8
 
     pop gs
     pop fs
@@ -28,9 +27,9 @@ interrupt_handler_%1:
     pop ds
     popad
 
-    add esp, 8              ; clean up stack (int + error code)
-    sti                     ; enable interrupts
+    sti
     iret
 %endmacro
 
+no_error_code_interrupt_handler 32
 no_error_code_interrupt_handler 33

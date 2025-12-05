@@ -1,4 +1,5 @@
 #include "fb.h"
+#include "io.h"
 
 static uint16_t* fb = (uint16_t*)FB_ADDRESS;
 static uint16_t cursor_x = 0;
@@ -6,15 +7,35 @@ static uint16_t cursor_y = 0;
 static uint8_t current_fg = FB_LIGHT_GREY;
 static uint8_t current_bg = FB_BLACK;
 
+static void fb_update_cursor() {
+    uint16_t pos = cursor_y * FB_WIDTH + cursor_x;
+    outb(0x3D4, 0x0F);
+    outb(0x3D5, (uint8_t)(pos & 0xFF));
+    outb(0x3D4, 0x0E);
+    outb(0x3D5, (uint8_t)((pos >> 8) & 0xFF));
+}
+
 void fb_move(uint16_t x, uint16_t y) {
     cursor_x = x;
     cursor_y = y;
+    fb_update_cursor();
 }
 
 void fb_putc(char c, uint8_t fg, uint8_t bg) {
     if (c == '\n') {
         cursor_x = 0;
         cursor_y++;
+        fb_update_cursor();
+        return;
+    }
+    if (c == '\b') {
+        if (cursor_x > 0) {
+            cursor_x--;
+        } else if (cursor_y > 0) {
+            cursor_y--;
+            cursor_x = FB_WIDTH - 1;
+        }
+        fb_update_cursor();
         return;
     }
     fb[cursor_y * FB_WIDTH + cursor_x] = ((bg & 0x0F) << 12) | ((fg & 0x0F) << 8) | c;
@@ -23,6 +44,7 @@ void fb_putc(char c, uint8_t fg, uint8_t bg) {
         cursor_x = 0;
         cursor_y++;
     }
+    fb_update_cursor();
 }
 
 void fb_print(const char* str, uint8_t fg, uint8_t bg) {
@@ -105,6 +127,7 @@ void fb_newline() {
     if (cursor_y >= FB_HEIGHT) {
         cursor_y = FB_HEIGHT - 1;
     }
+    fb_update_cursor();
 }
 
 void fb_backspace() {
@@ -116,4 +139,5 @@ void fb_backspace() {
         cursor_x = FB_WIDTH - 1;
         fb[cursor_y * FB_WIDTH + cursor_x] = ((current_bg & 0x0F) << 12) | ((current_fg & 0x0F) << 8) | ' ';
     }
+    fb_update_cursor();
 }

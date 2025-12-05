@@ -11,6 +11,7 @@ void keyboard_handle_input(u8int ascii);
 
 // Input buffer API
 void keyboard_init_buffer();
+void keyboard_init();
 u8int getc();
 void readline(char* buffer, u32int max_size);
 
